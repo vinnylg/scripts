@@ -252,7 +252,7 @@ validate_virtual_output() {
 
 is_output_active() {
   local output="$1"
-  list_active_virtuals | grep -q "^${output}$"
+  xrandr 2>/dev/null | grep -qE "^${output} connected [0-9]+"
 }
 
 # ============================
