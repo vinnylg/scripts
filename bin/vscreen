@@ -216,7 +216,8 @@ ACTIONS:
   -c, --change <N>          Change existing VIRTUAL<N> configuration
   --off <N>                 Disable VIRTUAL<N>
   --off-all                 Disable all virtual displays
-  --purge-modes             Remove all custom modes from VIRTUAL outputs
+  --purge <N>               Disable VIRTUAL<N> and remove its custom modes
+  --purge-all               Disable all virtual displays and remove all custom modes
   --list [all|active|free]  List virtual outputs (default: all)
   --version                 Show version information
   --help                    Show this help message
@@ -388,35 +389,27 @@ create_mode_if_needed() {
   return 0
 }
 
-purge_modes() {
-  local virtuals modes_removed=0
+# ============================
+# Output Purge (off + remove modes)
+# ============================
+purge_output() {
+  local output="$1"
   
-  # TODO(cleanup-improvement): Make --purge-modes remove inactive virtual outputs
-  # Currently only removes mode associations but leaves disconnected outputs.
-  # After purge, should leave only VIRTUAL1 available (reset to clean state).
-  #
-  # This would fix the "ghost displays" problem where tests leave many
-  # VIRTUALs in xrandr even after --off-all.
-  #
-  # Approach 1: After removing modes, also do:
-  #   for v in $(list_virtual_outputs); do
-  #     if ! is_output_active "$v"; then
-  #       # xrandr doesn't have --remove-output, so we can't actually delete them
-  #       # Virtual outputs persist until X restart
-  #     fi
-  #   done
-  #
-  # Approach 2: Document that user must restart X session to fully reset
-  #
-  # Approach 3: Before any vscreen operation, save xrandr state to allow restore
-  #
-  # Note: Intel driver creates virtual outputs dynamically and doesn't provide
-  # a way to remove them via xrandr. They persist until X server restarts.
-  #
-  # assignees: maintainer
-  # labels: cleanup, user-experience, limitation
-  # milestone: vscreen-v2.1
+  # First, turn off the output
+  xrandr --output "$output" --off 2>/dev/null
   
+  # Then remove all custom modes from this output
+  local modes
+  modes=$(xrandr 2>/dev/null | awk "/^${output}/,/^[A-Z]/" | grep -oE '[0-9]+x[0-9]+_[0-9.]+' || true)
+  
+  for mode in $modes; do
+    log_debug "Removing mode $mode from $output"
+    xrandr --delmode "$output" "$mode" 2>/dev/null
+  done
+}
+
+purge_all_outputs() {
+  local virtuals
   virtuals=$(list_virtual_outputs)
   
   if [[ -z "$virtuals" ]]; then
@@ -425,21 +418,12 @@ purge_modes() {
   fi
   
   for v in $virtuals; do
-    log_debug "Processing modes for $v"
-    
-    # Get all modes for this output
-    local modes
-    modes=$(xrandr 2>/dev/null | awk "/^$v/,/^[A-Z]/ {if (/^\s+[0-9]+x[0-9]+/) print \$1}")
-    
-    for m in $modes; do
-      log_debug "Removing mode $m from $v"
-      run xrandr --delmode "$v" "$m" 2>/dev/null && ((modes_removed++))
-    done
+    log_info "Purging $v"
+    purge_output "$v"
   done
   
-  log_info "Purged $modes_removed mode associations"
+  log_info "All virtual outputs purged"
 }
-
 # ============================
 # Smart Positioning
 # ============================
@@ -660,8 +644,21 @@ while [[ $# -gt 0 ]]; do
       ACTION="off-all"
       shift
       ;;
-    --purge-modes)
+    --purge)
+      if [[ -z "${2:-}" || "$2" == -* ]]; then
+        log_error "--purge requires a number"
+        exit 1
+      fi
+      if [[ ! "$2" =~ ^[0-9]+$ ]]; then
+        log_error "--purge requires a valid number"
+        exit 1
+      fi
       ACTION="purge"
+      TARGET="$2"
+      shift 2
+      ;;
+    --purge-all)
+      ACTION="purge-all"
       shift
       ;;
     --list)
@@ -799,7 +796,17 @@ case "$ACTION" in
     ;;
     
   purge)
-    purge_modes
+    OUTPUT="VIRTUAL${TARGET}"
+    validate_virtual_output "$TARGET" || exit 1
+    
+    log_info "Purging $OUTPUT"
+    purge_output "$OUTPUT"
+    log_info "$OUTPUT purged successfully"
+    exit 0
+    ;;
+    
+  purge-all)
+    purge_all_outputs
     exit 0
     ;;
 esac

@@ -50,12 +50,13 @@ PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 VSCREEN="$PROJECT_ROOT/bin/vscreen"
 
 # Log Configuration
-LOG_DIR="$PROJECT_ROOT/logs/integration/vscreen"
+# LOG_DIR="$PROJECT_ROOT/logs/integration/vscreen"
+LOG_DIR="$PROJECT_ROOT/logs/tests/vscreen/integration"
 mkdir -p "$LOG_DIR"
 
-TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-LOGFILE="$LOG_DIR/integration_${TIMESTAMP}.log"
-LATEST_LINK="$LOG_DIR/integration_latest.log"
+TIMESTAMP=$(date +"%Y%m%d%H%M%S")
+LOGFILE="$LOG_DIR/${TIMESTAMP}.log"
+LATEST_LINK="$LOG_DIR/latest.log"
 
 # Updates the symlink to point to the most recent run
 ln -sf "$(basename "$LOGFILE")" "$LATEST_LINK"
@@ -113,8 +114,7 @@ fi
 # Logging Functions
 # ============================
 log_to_file() {
-  # Strip ANSI codes for log file
-  echo "$*" | sed -r 's/\x1b\[[0-9;]*m//g' >> "$LOGFILE"
+  echo "$*" | sed 's/\x1b\[[0-9;]*m//g; s/\\033\[[0-9;]*m//g' >> "$LOGFILE"
 }
 
 log() {
@@ -219,14 +219,8 @@ wait_for_xrandr() {
 }
 
 force_cleanup() {
-  log_info "Force cleanup: disabling all virtual displays"
-  local virtuals
-  virtuals=$(xrandr 2>/dev/null | awk '/^VIRTUAL[0-9]+/{print $1}')
-  
-  for v in $virtuals; do
-    xrandr --output "$v" --off 2>/dev/null
-  done
-  
+  log_info "Force cleanup: purging all virtual displays"
+  "$VSCREEN" --purge-all &>> "$LOGFILE" || true
   wait_for_xrandr
 }
 
