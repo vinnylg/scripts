@@ -50,12 +50,13 @@ PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 VSCREEN="$PROJECT_ROOT/bin/vscreen"
 
 # Log Configuration
-LOG_DIR="$PROJECT_ROOT/logs/integration/vscreen"
+# LOG_DIR="$PROJECT_ROOT/logs/integration/vscreen"
+LOG_DIR="$PROJECT_ROOT/logs/tests/vscreen/integration"
 mkdir -p "$LOG_DIR"
 
-TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-LOGFILE="$LOG_DIR/integration_${TIMESTAMP}.log"
-LATEST_LINK="$LOG_DIR/integration_latest.log"
+TIMESTAMP=$(date +"%Y%m%d%H%M%S")
+LOGFILE="$LOG_DIR/${TIMESTAMP}.log"
+LATEST_LINK="$LOG_DIR/latest.log"
 
 # Updates the symlink to point to the most recent run
 ln -sf "$(basename "$LOGFILE")" "$LATEST_LINK"
