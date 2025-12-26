@@ -114,8 +114,7 @@ fi
 # Logging Functions
 # ============================
 log_to_file() {
-  # Strip ANSI codes for log file
-  echo "$*" | sed -r 's/\x1b\[[0-9;]*m//g' >> "$LOGFILE"
+  echo "$*" | sed 's/\x1b\[[0-9;]*m//g; s/\\033\[[0-9;]*m//g' >> "$LOGFILE"
 }
 
 log() {
@@ -220,14 +219,8 @@ wait_for_xrandr() {
 }
 
 force_cleanup() {
-  log_info "Force cleanup: disabling all virtual displays"
-  local virtuals
-  virtuals=$(xrandr 2>/dev/null | awk '/^VIRTUAL[0-9]+/{print $1}')
-  
-  for v in $virtuals; do
-    xrandr --output "$v" --off 2>/dev/null
-  done
-  
+  log_info "Force cleanup: purging all virtual displays"
+  "$VSCREEN" --purge-all &>> "$LOGFILE" || true
   wait_for_xrandr
 }
 
